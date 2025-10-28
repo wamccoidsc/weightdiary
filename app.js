@@ -98,7 +98,7 @@ const initializeAuthForms = () => {
 };
 
 const initializeAppDashboard = () => {
-    if (!currentUser) { console.error("initializeAppDashboard called without a valid currentUser."); window.location.href = "https://wamccoidsc.github.io/weightdiaryindex.html"; return; }
+    if (!currentUser) { console.error("initializeAppDashboard called without a valid currentUser."); window.location.href = "https://wamccoidsc.github.io/weightdiary/index.html"; return; }
     const userEmailEl = document.getElementById('user-email');
     if (!userEmailEl) { console.error("Could not find element with ID 'user-email'."); }
     else { userEmailEl.textContent = currentUser.email || 'No Email'; }
