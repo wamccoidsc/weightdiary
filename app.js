@@ -19,12 +19,12 @@ let firebaseInitialized = false;
 let currentUser = null;
 let userProfile = {};
 let todayDiaryDocId = null;
-let calendarInstance = null;
+let calendarInstance = null; // Holds the flatpickr instance
 let userEntryDates = [];
 let calendarModal = null;
 let settingsModal = null;
-let dashboardInitialized = false;
-let authFormsInitialized = false;
+let dashboardInitialized = false; // Flag to prevent multiple initializations
+let authFormsInitialized = false; // Flag for auth forms
 
 // Initialize Firebase
 try {
@@ -36,7 +36,10 @@ try {
 } catch (error) {
     console.error("FATAL ERROR - Firebase initialization failed:", error);
     document.addEventListener('DOMContentLoaded', () => {
-         if(document.body) { document.body.innerHTML = '<h1 style="color: red; text-align: center; margin-top: 50px;">Error initializing application. Please check console and Firebase config.</h1>'; }
+         // Check if body exists before modifying
+         if(document.body) {
+            document.body.innerHTML = '<h1 style="color: red; text-align: center; margin-top: 50px;">Error initializing application. Please check console and Firebase config.</h1>';
+         }
     });
 }
 
@@ -49,7 +52,10 @@ const showMessage = (element, message, type = 'success') => { if (element) { ele
 // --- MAIN APP LOGIC ---
 const main = () => {
     console.log("main() called");
-    if (!firebaseInitialized || !auth) { console.error("Firebase not initialized correctly. Cannot proceed."); return; }
+    if (!firebaseInitialized || !auth) {
+        console.error("Firebase not initialized correctly. Cannot proceed.");
+        return;
+    }
 
     auth.onAuthStateChanged(user => {
         console.log("onAuthStateChanged triggered. User:", user ? user.uid : 'null');
@@ -61,26 +67,48 @@ const main = () => {
         const indexURLExplicit = baseURL + "index.html";
 
         if (currentUser) {
-            authFormsInitialized = false;
+            // User logged in
+            authFormsInitialized = false; // Reset auth flag
+            // Check if NOT already on dashboard
             if (!currentPath.endsWith(dashboardURL)) {
                  console.log(`User logged in, redirecting from ${currentPath} to dashboard...`);
                  window.location.href = dashboardURL;
             } else {
+                 // Already on dashboard, initialize if needed (DOM ready check is crucial)
                  console.log("User on dashboard page.");
-                 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initializeAppDashboard); }
-                 else if (!dashboardInitialized) { console.log("DOM ready, initializing dashboard."); initializeAppDashboard(); }
-                 else { console.log("Dashboard already initialized, refreshing data only."); loadUserProfile(); loadTodaysDiary(); loadPastEntries(getYesterdayDateString()); }
+                 if (document.readyState === 'loading') {
+                     console.log("DOM not ready, adding listener for initializeAppDashboard");
+                     document.addEventListener('DOMContentLoaded', initializeAppDashboard);
+                 }
+                 else if (!dashboardInitialized) { // Check flag *after* DOM is ready
+                     console.log("DOM ready, initializing dashboard.");
+                     initializeAppDashboard();
+                 } else {
+                     console.log("Dashboard already initialized, refreshing data only.");
+                     loadUserProfile(); loadTodaysDiary(); loadPastEntries(getYesterdayDateString());
+                 }
             }
         } else {
-            dashboardInitialized = false; calendarInstance = null;
+            // User logged out
+            dashboardInitialized = false; // Reset dashboard flag
+            calendarInstance = null; // Reset calendar instance on logout
+            // Check if NOT already on index/auth page
             if (!currentPath.endsWith(indexURLBase) && !currentPath.endsWith(indexURLExplicit)) {
                  console.log(`User logged out, redirecting from ${currentPath} to index...`);
                  window.location.href = indexURLBase;
              } else {
+                  // Already on index page, initialize auth forms (if DOM ready)
                   console.log("User on index/auth page.");
-                  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initializeAuthForms); }
-                  else if (!authFormsInitialized) { console.log("DOM ready, initializing auth forms."); initializeAuthForms(); }
-                  else { console.log("Auth forms already initialized for this state."); }
+                  if (document.readyState === 'loading') {
+                     console.log("DOM not ready, adding listener for initializeAuthForms");
+                     document.addEventListener('DOMContentLoaded', initializeAuthForms);
+                  }
+                  else if (!authFormsInitialized) { // Check flag *after* DOM is ready
+                     console.log("DOM ready, initializing auth forms.");
+                     initializeAuthForms();
+                  } else {
+                      console.log("Auth forms already initialized for this state.");
+                  }
              }
         }
     });
@@ -90,9 +118,19 @@ const main = () => {
 const initializeAuthForms = () => {
     console.log("Attempting to initialize Auth Forms...");
     if (authFormsInitialized) { console.log("Auth forms already initialized for this view state."); return; }
-    const loginBtn = document.getElementById('login-btn'); const signupBtn = document.getElementById('signup-btn'); const showSignup = document.getElementById('show-signup'); const showLogin = document.getElementById('show-login'); const loginForm = document.getElementById('login-form'); const signupForm = document.getElementById('signup-form'); const loginError = document.getElementById('login-error'); const signupError = document.getElementById('signup-error');
+
+    const loginBtn = document.getElementById('login-btn');
+    const signupBtn = document.getElementById('signup-btn');
+    const showSignup = document.getElementById('show-signup');
+    const showLogin = document.getElementById('show-login');
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const loginError = document.getElementById('login-error');
+    const signupError = document.getElementById('signup-error');
+
     if(!loginBtn || !signupBtn || !showSignup || !showLogin || !loginForm || !signupForm || !loginError || !signupError) { console.error("One or more auth form elements missing during init. Cannot attach listeners."); return; }
     console.log("All auth form elements found.");
+
     try {
         showSignup.addEventListener('click', (e) => { e.preventDefault(); loginForm.style.display = 'none'; signupForm.style.display = 'block'; });
         showLogin.addEventListener('click', (e) => { e.preventDefault(); signupForm.style.display = 'none'; loginForm.style.display = 'block'; });
@@ -116,8 +154,11 @@ const initializeAppDashboard = () => {
     console.log("Getting modal elements...");
     calendarModal = document.getElementById('calendar-modal'); settingsModal = document.getElementById('settings-modal');
     if (!calendarModal || !settingsModal) { console.error("Could not find modal elements!"); } else { console.log("Modal elements found."); }
+
+    // -- Event Listeners --
      console.log("Attaching event listeners...");
      try {
+        // Attach listeners...
         const saveSettingsBtn = document.getElementById('save-settings-btn'); if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings); else console.error("Could not find save-settings-btn");
         const weightCheck = document.getElementById('record-weight-check'); const weightContainer = document.getElementById('weight-input-container'); if (weightCheck && weightContainer) { weightCheck.addEventListener('change', () => { weightContainer.style.display = weightCheck.checked ? 'block' : 'none'; if (!weightCheck.checked) { document.getElementById('weight').value = ''; } }); } else console.warn("Weight check/container elements missing");
         const addFoodBtn = document.getElementById('add-food-btn'); if(addFoodBtn) addFoodBtn.addEventListener('click', addFoodItemToUI); else console.error("Could not find add-food-btn");
@@ -134,13 +175,19 @@ const initializeAppDashboard = () => {
         const settingsCloseBtn = document.querySelector('#settings-modal .modal-close-btn'); if(settingsCloseBtn) settingsCloseBtn.addEventListener('click', closeSettingsModal); else console.error("Could not find settings close button");
         if(settingsModal) settingsModal.addEventListener('click', (event) => { if (event.target === settingsModal) { closeSettingsModal(); } });
         console.log("Event listeners attached.");
+
+        // *** Calendar is NOT initialized here anymore ***
+
         dashboardInitialized = true; // Mark as initialized AFTER successful listener setup
+
     } catch (error) {
         console.error("Error attaching event listeners:", error);
-        const diaryMsgEl = document.getElementById('diary-message'); if (diaryMsgEl) showMessage(diaryMsgEl, "Error initializing page interactions.", "error");
+        const diaryMsgEl = document.getElementById('diary-message');
+        if (diaryMsgEl) showMessage(diaryMsgEl, "Error initializing page interactions.", "error");
     }
     console.log("initializeAppDashboard finished.");
 };
+
 
 // --- DATA FUNCTIONS (FIRESTORE) ---
 const loadUserProfile = async () => { /* ... unchanged ... */ };
@@ -152,35 +199,81 @@ const loadPastEntries = async (dateString) => { /* ... unchanged ... */ };
 const renderPastEntry = (data) => { /* ... unchanged ... */ };
 
 // --- CALENDAR & MODAL FUNCTIONS ---
-const fetchUserEntryDatesAndUpdateCalendar = async () => { /* ... unchanged ... */ };
+// *** REMOVED initializeCalendar function ***
+
+const fetchUserEntryDatesAndUpdateCalendar = async () => {
+     if (!currentUser) return;
+     try {
+        console.log("Fetching entry dates for calendar...");
+        const q = db.collection('diary').where('userId', '==', currentUser.uid).select('date');
+        const snapshot = await q.get();
+        userEntryDates = snapshot.docs.map(doc => doc.data().date);
+        console.log("Entry dates fetched:", userEntryDates.length);
+        if (calendarInstance) {
+            // Update the onDayCreate function with the new dates and redraw
+            calendarInstance.set("onDayCreate", (d, dStr, fp, dayElem) => {
+                 const dateString = getYYYYMMDD(dayElem.dateObj);
+                 dayElem.classList.toggle("has-entry", userEntryDates.includes(dateString)); // More efficient toggle
+            });
+            calendarInstance.redraw();
+            console.log("Calendar redrawn with updated dates.");
+        }
+    } catch (err) {
+        console.error("Error fetching entry dates for calendar:", err);
+    }
+};
+
 const openCalendarModal = async () => {
     console.log("openCalendarModal called");
     if (!calendarModal) { console.error("Cannot open calendar modal: element not found"); return; }
+
+    // Make modal visible first
     calendarModal.style.display = "flex";
     console.log("Calendar modal displayed.");
-    await fetchUserEntryDatesAndUpdateCalendar(); // Fetch/refresh dates
 
+    // Fetch dates every time to ensure freshness
+    await fetchUserEntryDatesAndUpdateCalendar();
+
+    // Initialize Flatpickr only if it hasn't been initialized yet
     if (!calendarInstance) {
         console.log("Initializing Flatpickr instance for the first time...");
         const calendarContainer = document.getElementById('calendar-container');
-        if (!calendarContainer) { console.error("Cannot initialize calendar: #calendar-container not found."); closeCalendarModal(); return; }
-        // Use setTimeout to allow modal render
+        if (!calendarContainer) {
+            console.error("Cannot initialize calendar: #calendar-container not found.");
+            closeCalendarModal(); // Close modal if container is missing
+            return;
+        }
+        // Use setTimeout to allow the browser to render the modal first
         setTimeout(() => {
             try {
-                calendarInstance = flatpickr("#calendar-container", {
-                    inline: true, maxDate: "today",
-                    onDayCreate: (d, dStr, fp, dayElem) => { const dateString = getYYYYMMDD(dayElem.dateObj); dayElem.classList.toggle("has-entry", userEntryDates.includes(dateString)); },
-                    onChange: (selectedDates) => { if (selectedDates.length > 0) { const dateString = getYYYYMMDD(selectedDates[0]); loadPastEntries(dateString); closeCalendarModal(); } }
+                calendarInstance = flatpickr("#calendar-container", { // Target the container div
+                    inline: true,
+                    maxDate: "today",
+                    // Use the already fetched userEntryDates for the initial draw
+                    onDayCreate: (d, dStr, fp, dayElem) => {
+                        const dateString = getYYYYMMDD(dayElem.dateObj);
+                        dayElem.classList.toggle("has-entry", userEntryDates.includes(dateString));
+                    },
+                    onChange: (selectedDates) => {
+                        if (selectedDates.length > 0) {
+                            const dateString = getYYYYMMDD(selectedDates[0]);
+                            loadPastEntries(dateString);
+                            closeCalendarModal();
+                        }
+                    }
                 });
                 console.log("Flatpickr instance created successfully.");
             } catch (error) {
-                console.error("Error creating Flatpickr instance:", error); closeCalendarModal();
-                const diaryMsgEl = document.getElementById('diary-message'); if (diaryMsgEl) showMessage(diaryMsgEl, "Error opening calendar.", "error");
+                console.error("Error creating Flatpickr instance:", error);
+                closeCalendarModal();
+                const diaryMsgEl = document.getElementById('diary-message');
+                if (diaryMsgEl) showMessage(diaryMsgEl, "Error opening calendar.", "error");
             }
-        }, 0); // Delay slightly
+        }, 0); // setTimeout with 0ms delay
     } else {
+        // If instance exists, just ensure it's redrawn with latest dates
         console.log("Flatpickr instance exists, redrawing.");
-        calendarInstance.redraw(); // Just redraw if already initialized
+        calendarInstance.redraw();
     }
 };
 const closeCalendarModal = () => { if (calendarModal) { calendarModal.style.display = "none"; } };
