@@ -24,7 +24,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial
 .app-container { display: grid; grid-template-columns: 1fr; gap: 0; max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
 .entry-cards-container { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
 .card { background: #fff; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); padding: 1.5rem 2rem; }
-.dashboard-card { margin-bottom: 2rem; } 
+.dashboard-card { margin-bottom: 2rem; }
 .card h2 { margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.75rem; color: #333; }
 
 /* Dashboard Stats */
@@ -41,10 +41,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial
 .input-group textarea { resize: vertical; }
 .checkbox-group { display: flex; align-items: center; }
 .checkbox-group input[type="checkbox"] { width: auto; margin-right: 0.5rem; }
-.food-adder { display: flex; }
-.food-adder input { flex-grow: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.food-adder button { padding: 0 1rem; font-size: 1.5rem; border: 1px solid #007bff; background: #007bff; color: white; cursor: pointer; border-top-right-radius: 5px; border-bottom-right-radius: 5px; }
-.food-list-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.food-adder, .water-adder { display: flex; }
+.food-adder input, .water-adder input { flex-grow: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.food-adder button, .water-adder button { padding: 0 1rem; font-size: 1.5rem; border: 1px solid #007bff; background: #007bff; color: white; cursor: pointer; border-top-right-radius: 5px; border-bottom-right-radius: 5px; }
+.food-list-container, .water-list-container, .exercise-list-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .food-pill { background: #e0e0e0; border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.9rem; display: flex; align-items: center; }
 .food-pill .remove-food { margin-left: 0.5rem; font-weight: bold; cursor: pointer; color: #777; }
 .food-pill .remove-food:hover { color: #333; }
@@ -57,34 +57,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial
 .entry-card .entry-meta { font-size: 0.9rem; color: #555; margin-bottom: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
 .entry-card .entry-meta strong { color: #333; }
 .entry-card .entry-notes { font-size: 0.95rem; color: #333; margin-bottom: 1rem; white-space: pre-wrap; word-wrap: break-word; }
-.entry-card .food-list-container { margin-top: 0; }
+.entry-card .food-list-container, .entry-card .water-list-container, .entry-card .exercise-list-container { margin-top: 0.75rem; }
 .entry-card .food-pill { background: #eee; font-size: 0.85rem; padding: 0.2rem 0.6rem; }
 .entry-card .food-pill .remove-food { display: none; }
-.water-adder { display: flex; }
-.water-adder input { flex-grow: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.water-adder button { padding: 0 1rem; font-size: 1.5rem; border: 1px solid #007bff; background: #007bff; color: white; cursor: pointer; border-top-right-radius: 5px; border-bottom-right-radius: 5px; }
-.water-list-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .water-pill { background: #e0f7fa; border: 1px solid #b2ebf2; color: #006064; border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.9rem; display: flex; align-items: center; }
 .water-pill .remove-water { margin-left: 0.5rem; font-weight: bold; cursor: pointer; color: #0097a7; }
 .water-pill .remove-water:hover { color: #006064; }
 .water-total { margin-top: 0.75rem; font-size: 1.1rem; font-weight: 600; color: #007bff; text-align: right; }
 .entry-card .water-pill { background: #e0f7fa; border: 1px solid #b2ebf2; color: #006064; font-size: 0.85rem; padding: 0.2rem 0.6rem; }
 .entry-card .water-pill .remove-water { display: none; }
-.calendar-btn { padding: 0.5rem 1rem; font-size: 1rem; font-weight: 600; color: #fff; background-color: #007bff; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; width: auto; }
-.calendar-btn:hover { background-color: #0056b3; }
 .exercise-adder { display: flex; }
 .exercise-adder select { flex: 2; border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .exercise-adder input { flex: 1; border-radius: 0; border-left: 0; }
-.exercise-adder button { width: auto; padding: 0 1rem; font-size: 1.5rem; border-top-left-radius: 0; border-bottom-left-radius: 0; background-color: #28a745; border-color: #28a745; } 
+.exercise-adder button { width: auto; padding: 0 1rem; font-size: 1.5rem; border-top-left-radius: 0; border-bottom-left-radius: 0; background-color: #28a745; border-color: #28a745; }
 .exercise-adder button:hover { background-color: #218838; }
-.exercise-list-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .exercise-pill { background: #eaf8f0; border: 1px solid #a6d9b8; color: #2a7c4a; border-radius: 15px; padding: 0.25rem 0.75rem; font-size: 0.9rem; display: flex; align-items: center; }
 .exercise-pill .remove-exercise { margin-left: 0.5rem; font-weight: bold; cursor: pointer; color: #2a7c4a; }
 .exercise-pill .remove-exercise:hover { color: #1a5933; }
 .exercise-total { margin-top: 0.75rem; font-size: 1.1rem; font-weight: 600; color: #28a745; text-align: right; }
-.entry-card .exercise-list-container { margin-top: 0.75rem; }
 .entry-card .exercise-pill { background: #eaf8f0; border: 1px solid #a6d9b8; color: #2a7c4a; font-size: 0.85rem; padding: 0.2rem 0.6rem; }
 .entry-card .exercise-pill .remove-exercise { display: none; }
+
+.calendar-btn { padding: 0.5rem 1rem; font-size: 1rem; font-weight: 600; color: #fff; background-color: #007bff; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; width: auto; }
+.calendar-btn:hover { background-color: #0056b3; }
 
 /* --- MODAL STYLES (Generic & Specific) --- */
 .modal-overlay { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; }
@@ -92,27 +87,24 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial
 .modal-content h3 { text-align: center; margin-bottom: 1.5rem; color: #333; }
 .modal-close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
 .modal-close-btn:hover, .modal-close-btn:focus { color: black; text-decoration: none; }
-
-/* Calendar Modal Specific */
 #calendar-container { width: 350px; }
 .flatpickr-day.has-entry { position: relative; }
 .flatpickr-day.has-entry:after { content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background-color: #28a745; }
-
-/* Settings Modal Specific */
 #settings-modal .modal-content { width: 450px; }
 .modal-save-btn { width: 100%; padding: 0.75rem; border: none; border-radius: 5px; background-color: #007bff; color: white; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.3s; margin-top: 0.5rem; }
 .modal-save-btn:hover { background-color: #0056b3; }
 
 
 /* Responsive */
-@media (max-width: 1200px) { 
-    .entry-cards-container { grid-template-columns: 1fr; }
-}
+@media (max-width: 1200px) { .entry-cards-container { grid-template-columns: 1fr; } }
 @media (max-width: 600px) {
     .navbar { padding: 0 1rem; }
     .navbar-user { gap: 0.5rem; }
-    #settings-modal .modal-content { width: 90%; } 
-    .modal-content { padding: 15px; } 
-    #calendar-container { width: 100%; } 
-    .dashboard-stats { justify-content: center; } 
+    #settings-modal .modal-content { width: 90%; }
+    .modal-content { padding: 15px; }
+    #calendar-container { width: 100%; }
+    .dashboard-stats { justify-content: center; }
 }
+
+/* Visibility control (Used for single-file only, can be removed if desired) */
+.hidden { display: none !important; }
