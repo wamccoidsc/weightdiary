@@ -63,13 +63,13 @@ const main = () => {
         currentUser = user;
 
         if (currentUser) {
-            if (path.includes("index.html") || path === "/" || path.endsWith("/weight-loss-diary/")) { window.location.href = "dashboard.html"; }
+            if (path.includes("index.html") || path === "/" || path.endsWith("/weight-loss-diary/")) { window.location.href = "https://wamccoidsc.github.io/weightdiary/dashboard.html"; }
             else if (path.includes("dashboard.html")) {
                 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initializeAppDashboard); }
                 else { initializeAppDashboard(); }
             }
         } else {
-            if (path.includes("dashboard.html")) { window.location.href = "index.html"; }
+            if (path.includes("dashboard.html")) { window.location.href = "https://wamccoidsc.github.io/weightdiaryindex.html"; }
             else {
                  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initializeAuthForms); }
                  else { initializeAuthForms(); }
@@ -98,7 +98,7 @@ const initializeAuthForms = () => {
 };
 
 const initializeAppDashboard = () => {
-    if (!currentUser) { console.error("initializeAppDashboard called without a valid currentUser."); window.location.href = "index.html"; return; }
+    if (!currentUser) { console.error("initializeAppDashboard called without a valid currentUser."); window.location.href = "https://wamccoidsc.github.io/weightdiaryindex.html"; return; }
     const userEmailEl = document.getElementById('user-email');
     if (!userEmailEl) { console.error("Could not find element with ID 'user-email'."); }
     else { userEmailEl.textContent = currentUser.email || 'No Email'; }
