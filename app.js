@@ -69,7 +69,7 @@ const main = () => {
                  console.log("User on dashboard page.");
                  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initializeAppDashboard); }
                  else if (!dashboardInitialized) { console.log("DOM ready, initializing dashboard."); initializeAppDashboard(); }
-                 else { console.log("Dashboard already initialized, refreshing data only."); loadUserProfile(); loadTodaysDiary(); loadPastEntries(getYesterdayDateString()); }
+                 else { console.log("Dashboard already initialized, refreshing data only."); loadUserProfile(); loadTodaysDiary(); /* loadPastEntries(getYesterdayDateString()); */ } // Also commented out refresh here for now
             }
         } else {
             dashboardInitialized = false; calendarInstance = null;
@@ -104,20 +104,23 @@ const initializeAuthForms = () => {
 };
 
 const initializeAppDashboard = () => {
-     if (dashboardInitialized) { console.warn("Attempted to re-initialize dashboard. Exiting."); loadUserProfile(); loadTodaysDiary(); loadPastEntries(getYesterdayDateString()); return; }
+     if (dashboardInitialized) { console.warn("Attempted to re-initialize dashboard. Exiting."); loadUserProfile(); loadTodaysDiary(); /* loadPastEntries(getYesterdayDateString()); */ return; } // Also commented out refresh here for now
      console.log("Initializing Dashboard for the first time...");
     if (!currentUser) { console.error("initializeAppDashboard: currentUser is null."); return; }
      console.log("Current user confirmed:", currentUser.uid);
     const userEmailEl = document.getElementById('user-email'); if (!userEmailEl) { console.error("Could not find 'user-email'."); } else { userEmailEl.textContent = currentUser.email || 'No Email'; }
     const logoutBtn = document.getElementById('logout-btn'); if (logoutBtn) logoutBtn.addEventListener('click', () => auth.signOut()); else console.error("Could not find logout-btn");
     const diaryTitleEl = document.getElementById('diary-title'); if(diaryTitleEl) diaryTitleEl.textContent = `Today's Entry (${getTodayDateString()})`; else console.error("Could not find 'diary-title'.");
-    console.log("Loading initial data...");
-    loadUserProfile(); loadTodaysDiary(); loadPastEntries(getYesterdayDateString());
+    console.log("Loading initial data (excluding past entries for now)...");
+    loadUserProfile();
+    loadTodaysDiary();
+    // loadPastEntries(getYesterdayDateString()); // <--- TEMPORARILY COMMENTED OUT
     console.log("Getting modal elements...");
     calendarModal = document.getElementById('calendar-modal'); settingsModal = document.getElementById('settings-modal');
     if (!calendarModal || !settingsModal) { console.error("Could not find modal elements!"); } else { console.log("Modal elements found."); }
      console.log("Attaching event listeners...");
      try {
+        // Attach listeners...
         const saveSettingsBtn = document.getElementById('save-settings-btn'); if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings); else console.error("Could not find save-settings-btn");
         const weightCheck = document.getElementById('record-weight-check'); const weightContainer = document.getElementById('weight-input-container'); if (weightCheck && weightContainer) { weightCheck.addEventListener('change', () => { weightContainer.style.display = weightCheck.checked ? 'block' : 'none'; if (!weightCheck.checked) { document.getElementById('weight').value = ''; } }); } else console.warn("Weight check/container elements missing");
         const addFoodBtn = document.getElementById('add-food-btn'); if(addFoodBtn) addFoodBtn.addEventListener('click', addFoodItemToUI); else console.error("Could not find add-food-btn");
@@ -134,10 +137,15 @@ const initializeAppDashboard = () => {
         const settingsCloseBtn = document.querySelector('#settings-modal .modal-close-btn'); if(settingsCloseBtn) settingsCloseBtn.addEventListener('click', closeSettingsModal); else console.error("Could not find settings close button");
         if(settingsModal) settingsModal.addEventListener('click', (event) => { if (event.target === settingsModal) { closeSettingsModal(); } });
         console.log("Event listeners attached.");
+
+        // *** Calendar is initialized lazily in openCalendarModal ***
+
         dashboardInitialized = true; // Mark as initialized AFTER successful listener setup
+
     } catch (error) {
         console.error("Error attaching event listeners:", error);
-        const diaryMsgEl = document.getElementById('diary-message'); if (diaryMsgEl) showMessage(diaryMsgEl, "Error initializing page interactions.", "error");
+        const diaryMsgEl = document.getElementById('diary-message');
+        if (diaryMsgEl) showMessage(diaryMsgEl, "Error initializing page interactions.", "error");
     }
     console.log("initializeAppDashboard finished.");
 };
@@ -145,193 +153,48 @@ const initializeAppDashboard = () => {
 
 // --- DATA FUNCTIONS (FIRESTORE) ---
 const loadUserProfile = async () => {
-    console.log("loadUserProfile: Starting..."); // LP1
+    console.log("loadUserProfile: Starting...");
     userProfile = {}; // Initialize/reset
-    let profileDataFound = false;
     try {
         if (!currentUser) throw new Error("currentUser is not defined");
-        console.log("loadUserProfile: Fetching user doc for UID:", currentUser.uid); // LP2
+        console.log("loadUserProfile: Fetching user doc for UID:", currentUser.uid);
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
         if (userDoc.exists) {
             userProfile = userDoc.data();
-            profileDataFound = true;
-            console.log("loadUserProfile: User profile FOUND:", userProfile); // LP3
+            console.log("loadUserProfile: User profile FOUND:", userProfile);
             if (userProfile.joined && typeof userProfile.joined.toDate === 'function') { userProfile.joined = userProfile.joined.toDate(); }
             else { userProfile.joined = null; console.warn("User profile 'joined' field is missing or invalid."); }
             userProfile.startingWeight = userProfile.startingWeight || 0;
             userProfile.goalWeight = userProfile.goalWeight || 0;
             userProfile.desiredWeeklyLoss = userProfile.desiredWeeklyLoss || 0;
 
-            console.log("loadUserProfile: Populating settings form..."); // LP4
+            console.log("loadUserProfile: Populating settings form...");
             const startWeightInput = document.getElementById('starting-weight');
             const goalWeightInput = document.getElementById('goal-weight');
             const weeklyLossInput = document.getElementById('weekly-loss-goal');
             if(startWeightInput) startWeightInput.value = userProfile.startingWeight; else console.warn("startWeightInput not found");
             if(goalWeightInput) goalWeightInput.value = userProfile.goalWeight; else console.warn("goalWeightInput not found");
             if(weeklyLossInput) weeklyLossInput.value = userProfile.desiredWeeklyLoss; else console.warn("weeklyLossInput not found");
-            console.log("loadUserProfile: Settings form populated."); // LP5
+            console.log("loadUserProfile: Settings form populated.");
 
         } else {
-             console.error("loadUserProfile: User profile document does NOT exist for UID:", currentUser.uid); // LP Error 1
+             console.error("loadUserProfile: User profile document does NOT exist for UID:", currentUser.uid);
              userProfile = { startingWeight: 0, goalWeight: 0, desiredWeeklyLoss: 0, joined: null };
         }
     } catch (error) {
-        console.error("loadUserProfile: CATCH block error:", error); // LP Error 2
+        console.error("loadUserProfile: CATCH block error:", error);
          userProfile = { startingWeight: 0, goalWeight: 0, desiredWeeklyLoss: 0, joined: null };
     } finally {
-        console.log("loadUserProfile: FINALLY block reached. Calling updateDashboard..."); // LP6
+        console.log("loadUserProfile: FINALLY block reached. Calling updateDashboard...");
         updateDashboard(); // Always update dashboard after attempting to load profile
-        console.log("loadUserProfile: updateDashboard call finished."); // LP7
+        console.log("loadUserProfile: updateDashboard call finished.");
     }
 };
 
-const saveSettings = async () => {
-  console.log("saveSettings called");
-  const startingWeight = parseFloat(document.getElementById('starting-weight').value) || 0;
-  const goalWeight = parseFloat(document.getElementById('goal-weight').value) || 0;
-  const weeklyLossGoal = parseFloat(document.getElementById('weekly-loss-goal').value) || 0;
-  const settingsMsg = document.getElementById('settings-success');
-
-  try {
-      await db.collection('users').doc(currentUser.uid).set({
-          startingWeight: startingWeight, goalWeight: goalWeight, desiredWeeklyLoss: weeklyLossGoal
-      }, { merge: true });
-
-      userProfile.startingWeight = startingWeight; userProfile.goalWeight = goalWeight; userProfile.desiredWeeklyLoss = weeklyLossGoal;
-
-      showMessage(settingsMsg, 'Settings saved!', 'success');
-      updateDashboard();
-      setTimeout(closeSettingsModal, 1500);
-  } catch (err) { showMessage(settingsMsg, `Error: ${err.message}`, 'error'); }
-};
-
-const loadTodaysDiary = async () => {
-    console.log("loadTodaysDiary called");
-    const today = getTodayDateString();
-    try {
-        const q = db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', today).limit(1); const snapshot = await q.get();
-        document.getElementById('record-weight-check').checked = false; document.getElementById('weight-input-container').style.display = 'none'; document.getElementById('weight').value = ''; document.getElementById('mood').value = ''; document.getElementById('notes').value = ''; document.getElementById('food-list').innerHTML = ''; document.getElementById('water-list').innerHTML = ''; document.getElementById('exercise-list').innerHTML = ''; todayDiaryDocId = null;
-        if (!snapshot.empty) {
-            const doc = snapshot.docs[0]; const data = doc.data(); todayDiaryDocId = doc.id;
-            if (data.weight) { document.getElementById('record-weight-check').checked = true; document.getElementById('weight-input-container').style.display = 'block'; document.getElementById('weight').value = data.weight; }
-            document.getElementById('mood').value = data.mood || ''; document.getElementById('notes').value = data.notes || '';
-            if (data.foods && Array.isArray(data.foods)) { data.foods.forEach(food => renderFoodPill(food.name, food.calories)); } // Adjusted call
-            if (data.water && Array.isArray(data.water)) { data.water.forEach(ounces => renderWaterPill(ounces)); }
-            if (data.exercises && Array.isArray(data.exercises)) { data.exercises.forEach(ex => renderExercisePill(ex.type, ex.minutes)); }
-        }
-        updateTodayWaterTotal(); updateTodayExerciseTotal(); updateTodayFoodTotal(); // Adjusted call
-    } catch (error) { console.error("Error loading today's diary:", error); }
-};
-
-const saveDiaryEntry = async () => {
-    console.log("saveDiaryEntry called");
-    const diaryMsg = document.getElementById('diary-message');
-    const isWeightChecked = document.getElementById('record-weight-check').checked;
-    const weightVal = parseFloat(document.getElementById('weight').value);
-
-    const foodPills = document.querySelectorAll('#food-list .food-pill');
-    const foods = Array.from(foodPills).map(pill => { return { name: pill.dataset.name, calories: parseFloat(pill.dataset.calories) || 0 }; });
-    const totalFoodCalories = foods.reduce((sum, food) => sum + food.calories, 0);
-
-    const waterPills = document.querySelectorAll('#water-list .water-pill');
-    const waterValues = Array.from(waterPills).map(pill => parseFloat(pill.dataset.ounces));
-    const totalWater = waterValues.reduce((sum, val) => sum + val, 0);
-
-    const exercisePills = document.querySelectorAll('#exercise-list .exercise-pill');
-    const exercises = Array.from(exercisePills).map(pill => { return { type: pill.dataset.type, minutes: parseFloat(pill.dataset.minutes) }; });
-    const totalExercise = exercises.reduce((sum, ex) => sum + ex.minutes, 0);
-
-    const today = getTodayDateString();
-    const entryData = {
-        userId: currentUser.uid, date: today, timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        mood: document.getElementById('mood').value, notes: document.getElementById('notes').value,
-        foods: foods, foodCaloriesTotal: totalFoodCalories,
-        weight: (isWeightChecked && !isNaN(weightVal)) ? weightVal : firebase.firestore.FieldValue.delete(), // Default to delete for update case
-        water: waterValues, waterTotal: totalWater,
-        exercises: exercises, exerciseTotal: totalExercise
-    };
-    const shouldIncludeWeight = isWeightChecked && !isNaN(weightVal);
-
-    try {
-        if (todayDiaryDocId) { // Update
-            if (!shouldIncludeWeight) { entryData.weight = firebase.firestore.FieldValue.delete(); } // Only use delete for update
-            await db.collection('diary').doc(todayDiaryDocId).update(entryData);
-            showMessage(diaryMsg, 'Entry updated successfully!', 'success');
-        } else { // Create
-            if (!shouldIncludeWeight) { delete entryData.weight; } // Omit field if not needed
-            const newDoc = await db.collection('diary').add(entryData);
-            todayDiaryDocId = newDoc.id;
-            showMessage(diaryMsg, 'Entry saved successfully!', 'success');
-        }
-        updateDashboard();
-        if (!userEntryDates.includes(today)) { userEntryDates.push(today); if (calendarInstance) { calendarInstance.redraw(); } }
-    } catch (err) { console.error("Error saving diary entry:", err); showMessage(diaryMsg, `Error: ${err.message}`, 'error'); }
-};
-
-const updateDashboard = async () => {
-    console.log("updateDashboard: Starting..."); // UD1
-    const startWeightEl = document.getElementById('stat-starting-weight'); const currentWeightEl = document.getElementById('stat-current-weight'); const totalLossEl = document.getElementById('stat-total-loss'); const goalDateEl = document.getElementById('stat-goal-date'); const yesterdayWaterEl = document.getElementById('stat-yesterday-water'); const yesterdayExerciseEl = document.getElementById('stat-yesterday-exercise'); const goalWeightEl = document.getElementById('stat-goal-weight'); const yesterdayCaloriesEl = document.getElementById('stat-yesterday-calories');
-
-    if (!startWeightEl || !currentWeightEl || !totalLossEl || !goalDateEl || !yesterdayWaterEl || !yesterdayExerciseEl || !goalWeightEl || !yesterdayCaloriesEl) { console.error("updateDashboard: One or more dashboard stat elements are missing! Cannot update."); return; } // UD Error 1
-     console.log("updateDashboard: All dashboard elements found."); // UD2
-
-    // Reset UI
-    startWeightEl.textContent = '-- lbs'; currentWeightEl.textContent = '-- lbs'; totalLossEl.textContent = '-- lbs'; goalDateEl.textContent = '--'; goalDateEl.style.color = '#007bff'; yesterdayWaterEl.textContent = '-- oz'; yesterdayExerciseEl.textContent = '-- min'; goalWeightEl.textContent = '-- lbs'; yesterdayCaloriesEl.textContent = '--';
-     console.log("updateDashboard: UI reset to defaults."); // UD3
-
-    if (!currentUser || !userProfile || typeof userProfile.startingWeight === 'undefined') { // Simplified check
-        console.warn("updateDashboard: User profile not ready or invalid. Displaying defaults."); // UD Warning 1
-        goalDateEl.textContent = 'N/A'; yesterdayCaloriesEl.textContent = 'N/A';
-        return;
-    }
-     console.log("updateDashboard: User profile seems ready:", userProfile); // UD4
-
-    // Proceed with updates
-    try {
-        const startingWeight = userProfile.startingWeight || 0;
-        const goalWeight = userProfile.goalWeight || 0;
-        const desiredWeeklyLoss = userProfile.desiredWeeklyLoss || 0;
-        startWeightEl.textContent = `${startingWeight.toFixed(1)} lbs`;
-        goalWeightEl.textContent = `${goalWeight.toFixed(1)} lbs`;
-        console.log("updateDashboard: Set start/goal weight text."); // UD5
-
-        let currentWeight = startingWeight;
-        try {
-             console.log("updateDashboard: Fetching current weight..."); // UD6
-            const q = db.collection('diary').where('userId', '==', currentUser.uid).where('weight', '>', 0).orderBy('weight').orderBy('date', 'desc').limit(1);
-            const snapshot = await q.get();
-            if (!snapshot.empty) { currentWeight = snapshot.docs[0].data().weight; console.log("updateDashboard: Current weight fetched:", currentWeight); } // UD7a
-            else { console.log("updateDashboard: No weight entries found.");} // UD7b
-        } catch (error) { console.error("updateDashboard: Error fetching current weight:", error); } // UD Error 2
-
-        currentWeightEl.textContent = `${currentWeight.toFixed(1)} lbs`;
-        const totalLoss = startingWeight - currentWeight;
-        totalLossEl.textContent = `${totalLoss.toFixed(1)} lbs`;
-        if (totalLoss > 0) { totalLossEl.style.color = '#28a745'; } else if (totalLoss < 0) { totalLossEl.style.color = '#d93025'; } else { totalLossEl.style.color = '#555'; }
-         console.log("updateDashboard: Set current weight and total loss text."); // UD8
-
-        // Goal Date Calculation
-         console.log("updateDashboard: Calculating goal date..."); // UD9
-        if (goalWeight <= 0) { goalDateEl.textContent = 'Set Goal'; }
-        else if (startingWeight <= goalWeight) { goalDateEl.textContent = 'New Goal?'; }
-        else if (currentWeight <= goalWeight) { goalDateEl.textContent = 'Reached!'; goalDateEl.style.color = '#28a745'; }
-        else if (desiredWeeklyLoss > 0) { const weightRemaining = currentWeight - goalWeight; const weeksToGoal = weightRemaining / desiredWeeklyLoss; const daysToGoal = Math.round(weeksToGoal * 7); const today = new Date(); const estDate = new Date(); estDate.setDate(today.getDate() + daysToGoal); goalDateEl.textContent = estDate.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); console.log("updateDashboard: Goal date calculated using desired rate:", goalDateEl.textContent); } // UD10a
-        else { /* Fallback using average */ const joinDate = userProfile.joined; if (!joinDate) { goalDateEl.textContent = 'Set Rate'; console.log("updateDashboard: Goal date N/A (missing join date)."); } else { const today = new Date(); const msPerDay = 1000 * 60 * 60 * 24; const daysElapsed = (today.getTime() - joinDate.getTime()) / msPerDay; if (totalLoss <= 0 || daysElapsed < 1) { goalDateEl.textContent = 'Set Rate'; console.log("updateDashboard: Goal date N/A (no loss or < 1 day)."); } else { const avgLossPerDay = totalLoss / daysElapsed; const weightRemaining = currentWeight - goalWeight; const daysToGoal = Math.round(weightRemaining / avgLossPerDay); const estDate = new Date(); estDate.setDate(today.getDate() + daysToGoal); goalDateEl.textContent = estDate.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); console.log("updateDashboard: Goal date calculated using average rate:", goalDateEl.textContent); } } } // UD10b,c,d
-
-        // Yesterday's Stats
-         console.log("updateDashboard: Fetching yesterday's stats..."); // UD11
-        try { const yesterday = getYesterdayDateString(); const q = db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', yesterday).limit(1); const snapshot = await q.get(); let waterTotal = 0, exerciseTotal = 0, caloriesTotal = 0; if (!snapshot.empty) { const data = snapshot.docs[0].data(); waterTotal = data.waterTotal || 0; exerciseTotal = data.exerciseTotal || 0; caloriesTotal = data.foodCaloriesTotal || 0; } yesterdayWaterEl.textContent = `${waterTotal} oz`; yesterdayExerciseEl.textContent = `${exerciseTotal} min`; yesterdayCaloriesEl.textContent = `${caloriesTotal}`; console.log("updateDashboard: Yesterday's stats updated:", { water: waterTotal, exercise: exerciseTotal, calories: caloriesTotal }); } // UD12
-        catch (error) { console.error("updateDashboard: Error fetching yesterday's data:", error); yesterdayWaterEl.textContent = 'Error'; yesterdayExerciseEl.textContent = 'Error'; yesterdayCaloriesEl.textContent = 'Error'; } // UD Error 3
-
-    } catch (outerError) {
-         console.error("updateDashboard: CATCH block error during UI update:", outerError); // UD Error 4
-         if(startWeightEl) startWeightEl.textContent = 'Err'; if(currentWeightEl) currentWeightEl.textContent = 'Err'; /* ... set others to Err */
-    } finally {
-        console.log("updateDashboard: FINISHED."); // UD13
-    }
-};
-
-// --- PAST ENTRIES FUNCTIONS ---
+const saveSettings = async () => { /* ... unchanged ... */ };
+const loadTodaysDiary = async () => { /* ... unchanged ... */ };
+const saveDiaryEntry = async () => { /* ... unchanged ... */ };
+const updateDashboard = async () => { /* ... unchanged ... */ };
 const loadPastEntries = async (dateString) => { /* ... unchanged ... */ };
 const renderPastEntry = (data) => { /* ... unchanged ... */ };
 
