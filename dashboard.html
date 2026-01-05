@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="app-body">
+    <nav class="navbar">
+        <div class="navbar-brand">Weight Diary</div>
+        <div class="navbar-user">
+            <span id="user-email">Loading...</span>
+            <button id="open-settings-btn" class="nav-btn">My Settings</button> 
+            <button id="logout-btn" class="nav-btn">Logout</button>
+        </div>
+    </nav>
+
+    <div class="app-container">
+        <div class="dashboard-card card"> 
+            <h2>My Dashboard</h2>
+            <div class="dashboard-stats">
+                <div class="stat-item"><span class="stat-label">Current</span><span id="stat-current-weight" class="stat-value">-- lbs</span></div>
+                <div class="stat-item"><span class="stat-label">Total Loss</span><span id="stat-total-loss" class="stat-value">-- lbs</span></div>
+                <div class="stat-item"><span class="stat-label">Yesterday's Cal</span><span id="stat-yesterday-calories" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Yesterday's Urine</span><span id="stat-yesterday-urine" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Yesterday's Stool</span><span id="stat-yesterday-stool" class="stat-value">--</span></div>
+            </div>
+        </div>
+
+        <div class="entry-cards-container">
+            <div class="card">
+                <h2 id="diary-title">Today's Entry</h2>
+                <p id="diary-message" class="success-message"></p>
+                
+                <div class="input-group checkbox-group">
+                    <input type="checkbox" id="record-weight-check"><label for="record-weight-check">Record weight</label>
+                </div>
+                <div id="weight-input-container" class="input-group" style="display: none;">
+                    <input type="number" id="weight" placeholder="Weight (lbs)">
+                </div>
+
+                <div class="input-group">
+                    <label>Food:</label>
+                    <div class="food-adder"><input type="text" id="food-input" placeholder="Name"><input type="number" id="food-calories" placeholder="Cal"><button id="add-food-btn">+</button></div>
+                    <div id="food-list" class="food-list-container"></div>
+                </div>
+
+                <div class="input-group">
+                    <label>Water (oz):</label>
+                    <div class="water-adder"><input type="number" id="water-input" placeholder="oz"><button id="add-water-btn">+</button></div>
+                    <div id="water-list" class="water-list-container"></div>
+                </div>
+
+                <div class="input-group">
+                    <label>Exercise:</label>
+                    <div class="exercise-adder">
+                        <select id="exercise-type"><option value="Walking">Walking</option><option value="Running">Running</option><option value="Elliptical">Elliptical</option><option value="Swimming">Swimming</option><option value="Weightlifting">Weightlifting</option></select>
+                        <input type="number" id="exercise-minutes" placeholder="Min"><button id="add-exercise-btn">+</button>
+                    </div>
+                    <div id="exercise-list" class="exercise-list-container"></div>
+                </div>
+
+                <div class="input-group">
+                    <label>Restroom Tracker:</label>
+                    <div class="restroom-adder">
+                        <select id="restroom-type">
+                            <option value="Urine">Urine</option>
+                            <option value="Stool">Stool</option>
+                        </select>
+                        <button id="add-restroom-btn">+</button>
+                    </div>
+                    <div id="restroom-list" class="restroom-list-container"></div>
+                    <div class="restroom-total">Today: <span id="urine-count">0</span> Urine | <span id="stool-count">0</span> Stool</div>
+                </div>
+
+                <button id="save-diary-btn">Save Today's Entry</button>
+            </div>
+
+            <div class="card">
+                <h2>Past Entries</h2>
+                <button id="open-calendar-btn" class="calendar-btn">View Calendar</button>
+                <div id="past-entries-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
