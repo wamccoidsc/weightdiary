@@ -24,6 +24,7 @@ let todayDiaryDocId = null;
 let latestWeightLbs = 0;
 let dashboardInitialized = false;
 
+// MET Values for Exercise Calorie Burn
 const MET_VALUES = { Walking: 4.0, Running: 9.0, Elliptical: 5.0, Swimming: 6.0, Weightlifting: 4.5 };
 const LBS_TO_KG = 0.453592;
 
@@ -50,19 +51,28 @@ auth.onAuthStateChanged(user => {
 
 function initializeDashboard() {
     if (dashboardInitialized) return;
+    console.log("Initializing Dashboard...");
     
     const emailEl = document.getElementById('user-email');
     if (emailEl) emailEl.textContent = currentUser.email;
 
-    // Listeners
+    // Event Listeners (using optional chaining for stability)
     document.getElementById('logout-btn')?.addEventListener('click', () => auth.signOut());
     document.getElementById('add-food-btn')?.addEventListener('click', addFood);
     document.getElementById('add-water-btn')?.addEventListener('click', addWater);
     document.getElementById('add-exercise-btn')?.addEventListener('click', addExercise);
-    document.getElementById('save-diary-btn')?.addEventListener('click', saveEntry);
+    document.getElementById('save-diary-btn')?.addEventListener('click', saveDiaryEntry);
+    
     document.getElementById('open-settings-btn')?.addEventListener('click', () => {
         const modal = document.getElementById('settings-modal');
         if (modal) modal.style.display = 'flex';
+    });
+
+    document.querySelectorAll('.modal-close-btn').forEach(btn => {
+        btn.onclick = () => {
+            const modals = document.querySelectorAll('.modal-overlay');
+            modals.forEach(m => m.style.display = 'none');
+        };
     });
     
     document.getElementById('record-weight-check')?.addEventListener('change', (e) => {
@@ -81,7 +91,6 @@ async function loadProfile() {
         const doc = await db.collection('users').doc(currentUser.uid).get();
         if (doc.exists) {
             userProfile = doc.data();
-            // Once profile is loaded, we can calculate stats
             updateDashboardStats();
         }
     } catch (e) { console.error("Profile Load Error:", e); }
@@ -103,6 +112,7 @@ async function loadToday() {
             
             if (document.getElementById('mood')) document.getElementById('mood').value = data.mood || '';
             if (document.getElementById('notes')) document.getElementById('notes').value = data.notes || '';
+            
             if (data.weight && document.getElementById('weight')) {
                 document.getElementById('record-weight-check').checked = true;
                 document.getElementById('weight-input-container').style.display = 'block';
@@ -116,6 +126,77 @@ async function loadToday() {
             updateTotalsUI();
         }
     } catch (e) { console.error("Today Load Error:", e); }
+}
+
+// --- DASHBOARD UPDATES (FIXED LATEST WEIGHT LOGIC) ---
+async function updateDashboardStats() {
+    try {
+        const startWeight = parseFloat(userProfile.startingWeight) || 0;
+        
+        // Fetch up to 50 recent entries to find the newest weight reading
+        const diarySnap = await db.collection('diary')
+            .where('userId', '==', currentUser.uid)
+            .orderBy('date', 'desc')
+            .limit(50) 
+            .get();
+
+        let current = startWeight; 
+        let foundWeight = false;
+
+        if (!diarySnap.empty) {
+            for (const doc of diarySnap.docs) {
+                const data = doc.data();
+                if (data.weight && parseFloat(data.weight) > 0) {
+                    current = parseFloat(data.weight);
+                    foundWeight = true;
+                    console.log("Dashboard: Newest weight from:", data.date, "Value:", current);
+                    break; 
+                }
+            }
+        }
+        
+        latestWeightLbs = current; // Global variable for burn calculations
+
+        const setStat = (id, val) => { 
+            const el = document.getElementById(id);
+            if (el) el.textContent = val; 
+        };
+        
+        setStat('stat-starting-weight', startWeight.toFixed(1) + " lbs");
+        setStat('stat-current-weight', current.toFixed(1) + " lbs");
+        
+        const totalLoss = startWeight - current;
+        const totalLossEl = document.getElementById('stat-total-loss');
+        if (totalLossEl) {
+            totalLossEl.textContent = totalLoss.toFixed(1) + " lbs";
+            totalLossEl.style.color = totalLoss >= 0 ? '#28a745' : '#d93025';
+        }
+
+        if (document.getElementById('stat-goal-weight')) {
+            document.getElementById('stat-goal-weight').textContent = (parseFloat(userProfile.goalWeight) || 0).toFixed(1) + " lbs";
+        }
+
+        // Yesterday's Stats Summary
+        const yesterday = getYesterdayStr();
+        const ySnap = await db.collection('diary')
+            .where('userId', '==', currentUser.uid)
+            .where('date', '==', yesterday)
+            .limit(1).get();
+            
+        if (!ySnap.empty) {
+            const y = ySnap.docs[0].data();
+            setStat('stat-yesterday-water', (y.waterTotal || 0) + " oz");
+            setStat('stat-yesterday-calories', y.foodCaloriesTotal || 0);
+            setStat('stat-yesterday-cal-burned', y.exerciseCaloriesTotal || 0);
+        } else {
+            setStat('stat-yesterday-water', "0 oz");
+            setStat('stat-yesterday-calories', "0");
+            setStat('stat-yesterday-cal-burned', "0");
+        }
+    } catch (e) { 
+        console.error("Dashboard Stats Error:", e);
+        // Note: If you see an index error, follow the link in your console to create it.
+    }
 }
 
 // --- UI ACTIONS ---
@@ -156,81 +237,11 @@ function updateTotalsUI() {
     if (document.getElementById('water-total-today')) document.getElementById('water-total-today').textContent = waterTotal;
 }
 
-// --- DASHBOARD UPDATES (FIXED) ---
-async function updateDashboardStats() {
-    try {
-        const startWeight = parseFloat(userProfile.startingWeight) || 0;
-        
-        // 1. Fetch the single most recent weight reading from the entire collection
-        console.log("Dashboard: Querying for absolute latest weight...");
-        const weightSnap = await db.collection('diary')
-            .where('userId', '==', currentUser.uid)
-            .where('weight', '>', 0)
-            .orderBy('weight') // Filtering on a range requires ordering by that field first
-            .orderBy('date', 'desc')
-            .limit(1).get();
-
-        let current = startWeight; 
-        if (!weightSnap.empty) {
-            current = weightSnap.docs[0].data().weight;
-            console.log("Dashboard: Latest weight found:", current);
-        } else {
-            console.log("Dashboard: No recorded weights found. Using Starting Weight.");
-        }
-        
-        latestWeightLbs = current; // Global variable for other calculations
-
-        const setStat = (id, val) => { 
-            const el = document.getElementById(id);
-            if (el) el.textContent = val; 
-        };
-        
-        // 2. Update Main Stats
-        setStat('stat-starting-weight', startWeight.toFixed(1) + " lbs");
-        setStat('stat-current-weight', current.toFixed(1) + " lbs");
-        
-        const totalLoss = startWeight - current;
-        const totalLossEl = document.getElementById('stat-total-loss');
-        if (totalLossEl) {
-            totalLossEl.textContent = totalLoss.toFixed(1) + " lbs";
-            totalLossEl.style.color = totalLoss >= 0 ? '#28a745' : '#d93025';
-        }
-
-        if (document.getElementById('stat-goal-weight')) {
-            document.getElementById('stat-goal-weight').textContent = (parseFloat(userProfile.goalWeight) || 0).toFixed(1) + " lbs";
-        }
-
-        // 3. Yesterday's Summary Cards
-        const yesterday = getYesterdayStr();
-        const ySnap = await db.collection('diary')
-            .where('userId', '==', currentUser.uid)
-            .where('date', '==', yesterday)
-            .limit(1).get();
-            
-        if (!ySnap.empty) {
-            const y = ySnap.docs[0].data();
-            setStat('stat-yesterday-water', (y.waterTotal || 0) + " oz");
-            setStat('stat-yesterday-calories', y.foodCaloriesTotal || 0);
-            setStat('stat-yesterday-cal-burned', y.exerciseCaloriesTotal || 0);
-            setStat('stat-yesterday-exercise', (y.exerciseMinutesTotal || 0) + " min");
-        } else {
-            setStat('stat-yesterday-water', "0 oz");
-            setStat('stat-yesterday-calories', "0");
-            setStat('stat-yesterday-cal-burned', "0");
-            setStat('stat-yesterday-exercise', "0 min");
-        }
-    } catch (e) { 
-        console.error("Dashboard Stats Error:", e);
-        // Important: If you see "The query requires an index" in the console, click the link provided.
-    }
-}
-
-async function saveEntry() {
+async function saveDiaryEntry() {
     try {
         const foodData = Array.from(document.querySelectorAll('.food-pill')).map(p => ({ name: p.dataset.label, calories: parseFloat(p.dataset.extra) || 0 }));
         const waterData = Array.from(document.querySelectorAll('.water-pill')).map(p => parseFloat(p.dataset.label));
         
-        // Calculate calorie burn based on current weight
         const exerciseData = Array.from(document.querySelectorAll('.exercise-pill')).map(p => {
             const mins = parseFloat(p.dataset.extra.replace('m', '')) || 0;
             const type = p.dataset.label;
@@ -249,12 +260,12 @@ async function saveEntry() {
             waterTotal: waterData.reduce((s, w) => s + w, 0),
             exercises: exerciseData,
             exerciseCaloriesTotal: exerciseData.reduce((s, e) => s + e.calories, 0),
-            exerciseMinutesTotal: exerciseData.reduce((s, e) => s + e.minutes, 0),
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
 
+        const weightCheck = document.getElementById('record-weight-check');
         const weightInput = document.getElementById('weight');
-        if (document.getElementById('record-weight-check')?.checked && weightInput?.value) {
+        if (weightCheck?.checked && weightInput?.value) {
             entry.weight = parseFloat(weightInput.value);
         } else {
             entry.weight = firebase.firestore.FieldValue.delete();
@@ -267,7 +278,7 @@ async function saveEntry() {
             todayDiaryDocId = newDoc.id;
         }
         
-        alert("Daily Entry Saved!");
-        updateDashboardStats(); // Refresh dashboard with potential new weight
+        alert("Entry Saved!");
+        updateDashboardStats(); // Refresh dashboard with the new reading
     } catch (e) { alert("Error saving: " + e.message); }
 }
