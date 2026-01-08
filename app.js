@@ -12,6 +12,7 @@ const firebaseConfig = {
 };
 // ⬆️ ⬆️ ⬆️ END OF FIREBASE CONFIG ⬆️ ⬆️ ⬆️
 
+
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
@@ -23,8 +24,9 @@ let userProfile = {};
 let todayDiaryDocId = null;
 let latestWeightLbs = 0;
 let dashboardInitialized = false;
+let userEntryDates = [];
+let calendarInstance = null;
 
-// MET Values for Exercise Calorie Burn
 const MET_VALUES = { Walking: 4.0, Running: 9.0, Elliptical: 5.0, Swimming: 6.0, Weightlifting: 4.5 };
 const LBS_TO_KG = 0.453592;
 
@@ -51,28 +53,18 @@ auth.onAuthStateChanged(user => {
 
 function initializeDashboard() {
     if (dashboardInitialized) return;
-    console.log("Initializing Dashboard...");
     
-    const emailEl = document.getElementById('user-email');
-    if (emailEl) emailEl.textContent = currentUser.email;
+    document.getElementById('user-email') ? document.getElementById('user-email').textContent = currentUser.email : null;
 
-    // Event Listeners (using optional chaining for stability)
+    // Listeners
     document.getElementById('logout-btn')?.addEventListener('click', () => auth.signOut());
     document.getElementById('add-food-btn')?.addEventListener('click', addFood);
     document.getElementById('add-water-btn')?.addEventListener('click', addWater);
     document.getElementById('add-exercise-btn')?.addEventListener('click', addExercise);
     document.getElementById('save-diary-btn')?.addEventListener('click', saveDiaryEntry);
-    
+    document.getElementById('open-calendar-btn')?.addEventListener('click', openCalendarModal);
     document.getElementById('open-settings-btn')?.addEventListener('click', () => {
-        const modal = document.getElementById('settings-modal');
-        if (modal) modal.style.display = 'flex';
-    });
-
-    document.querySelectorAll('.modal-close-btn').forEach(btn => {
-        btn.onclick = () => {
-            const modals = document.querySelectorAll('.modal-overlay');
-            modals.forEach(m => m.style.display = 'none');
-        };
+        document.getElementById('settings-modal').style.display = 'flex';
     });
     
     document.getElementById('record-weight-check')?.addEventListener('change', (e) => {
@@ -82,6 +74,7 @@ function initializeDashboard() {
 
     loadProfile();
     loadToday();
+    fetchUserEntryDates(); // Restores calendar dots
     dashboardInitialized = true;
 }
 
@@ -101,7 +94,6 @@ async function loadToday() {
         const today = getTodayStr();
         const snap = await db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', today).get();
         
-        // Reset lists before populating
         if (document.getElementById('food-list')) document.getElementById('food-list').innerHTML = '';
         if (document.getElementById('water-list')) document.getElementById('water-list').innerHTML = '';
         if (document.getElementById('exercise-list')) document.getElementById('exercise-list').innerHTML = '';
@@ -112,7 +104,6 @@ async function loadToday() {
             
             if (document.getElementById('mood')) document.getElementById('mood').value = data.mood || '';
             if (document.getElementById('notes')) document.getElementById('notes').value = data.notes || '';
-            
             if (data.weight && document.getElementById('weight')) {
                 document.getElementById('record-weight-check').checked = true;
                 document.getElementById('weight-input-container').style.display = 'block';
@@ -128,42 +119,80 @@ async function loadToday() {
     } catch (e) { console.error("Today Load Error:", e); }
 }
 
-// --- DASHBOARD UPDATES (FIXED LATEST WEIGHT LOGIC) ---
+// --- CALENDAR LOGIC (RESTORED) ---
+async function fetchUserEntryDates() {
+    const snap = await db.collection('diary').where('userId', '==', currentUser.uid).get();
+    userEntryDates = snap.docs.map(doc => doc.data().date);
+}
+
+function openCalendarModal() {
+    document.getElementById('calendar-modal').style.display = 'flex';
+    if (!calendarInstance) {
+        calendarInstance = flatpickr("#calendar-container", {
+            inline: true,
+            maxDate: "today",
+            onDayCreate: (d, dStr, fp, dayElem) => {
+                const dateStr = dayElem.dateObj.toISOString().split('T')[0];
+                if (userEntryDates.includes(dateStr)) {
+                    dayElem.classList.add("has-entry");
+                }
+            },
+            onChange: (selectedDates) => {
+                const dateStr = selectedDates[0].toISOString().split('T')[0];
+                loadPastEntry(dateStr);
+            }
+        });
+    } else {
+        calendarInstance.redraw();
+    }
+}
+
+async function loadPastEntry(dateStr) {
+    const list = document.getElementById('past-entries-list');
+    list.innerHTML = "Loading...";
+    const snap = await db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', dateStr).get();
+    if (snap.empty) {
+        list.innerHTML = "No entry for this date.";
+    } else {
+        list.innerHTML = "";
+        const data = snap.docs[0].data();
+        const card = document.createElement('div');
+        card.className = 'entry-card';
+        card.innerHTML = `<h3>${data.date}</h3><p>Weight: ${data.weight || '--'} lbs</p><p>${data.notes || ''}</p>`;
+        list.appendChild(card);
+    }
+}
+
+// --- DASHBOARD UPDATES (FIXED WEIGHT + GOAL DATE) ---
 async function updateDashboardStats() {
     try {
         const startWeight = parseFloat(userProfile.startingWeight) || 0;
-        
-        // Fetch up to 50 recent entries to find the newest weight reading
+        const goalWeight = parseFloat(userProfile.goalWeight) || 0;
+        const weeklyLoss = parseFloat(userProfile.desiredWeeklyLoss) || 0;
+
         const diarySnap = await db.collection('diary')
             .where('userId', '==', currentUser.uid)
             .orderBy('date', 'desc')
-            .limit(50) 
-            .get();
+            .limit(50).get();
 
         let current = startWeight; 
-        let foundWeight = false;
-
         if (!diarySnap.empty) {
             for (const doc of diarySnap.docs) {
                 const data = doc.data();
                 if (data.weight && parseFloat(data.weight) > 0) {
                     current = parseFloat(data.weight);
-                    foundWeight = true;
-                    console.log("Dashboard: Newest weight from:", data.date, "Value:", current);
                     break; 
                 }
             }
         }
         
-        latestWeightLbs = current; // Global variable for burn calculations
+        latestWeightLbs = current;
 
-        const setStat = (id, val) => { 
-            const el = document.getElementById(id);
-            if (el) el.textContent = val; 
-        };
+        const setStat = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = val; };
         
         setStat('stat-starting-weight', startWeight.toFixed(1) + " lbs");
         setStat('stat-current-weight', current.toFixed(1) + " lbs");
+        setStat('stat-goal-weight', goalWeight.toFixed(1) + " lbs");
         
         const totalLoss = startWeight - current;
         const totalLossEl = document.getElementById('stat-total-loss');
@@ -172,31 +201,31 @@ async function updateDashboardStats() {
             totalLossEl.style.color = totalLoss >= 0 ? '#28a745' : '#d93025';
         }
 
-        if (document.getElementById('stat-goal-weight')) {
-            document.getElementById('stat-goal-weight').textContent = (parseFloat(userProfile.goalWeight) || 0).toFixed(1) + " lbs";
+        // ESTIMATED GOAL DATE CALCULATION
+        const goalDateEl = document.getElementById('stat-goal-date');
+        if (goalDateEl) {
+            if (goalWeight > 0 && weeklyLoss > 0 && current > goalWeight) {
+                const lbsToGo = current - goalWeight;
+                const weeksToGo = lbsToGo / weeklyLoss;
+                const daysToGo = Math.ceil(weeksToGo * 7);
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + daysToGo);
+                goalDateEl.textContent = targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } else {
+                goalDateEl.textContent = "--";
+            }
         }
 
-        // Yesterday's Stats Summary
+        // Yesterday's Summary
         const yesterday = getYesterdayStr();
-        const ySnap = await db.collection('diary')
-            .where('userId', '==', currentUser.uid)
-            .where('date', '==', yesterday)
-            .limit(1).get();
-            
+        const ySnap = await db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', yesterday).get();
         if (!ySnap.empty) {
             const y = ySnap.docs[0].data();
             setStat('stat-yesterday-water', (y.waterTotal || 0) + " oz");
             setStat('stat-yesterday-calories', y.foodCaloriesTotal || 0);
             setStat('stat-yesterday-cal-burned', y.exerciseCaloriesTotal || 0);
-        } else {
-            setStat('stat-yesterday-water', "0 oz");
-            setStat('stat-yesterday-calories', "0");
-            setStat('stat-yesterday-cal-burned', "0");
         }
-    } catch (e) { 
-        console.error("Dashboard Stats Error:", e);
-        // Note: If you see an index error, follow the link in your console to create it.
-    }
+    } catch (e) { console.error("Dashboard Stats Error:", e); }
 }
 
 // --- UI ACTIONS ---
@@ -232,7 +261,6 @@ function renderPill(cat, label, extra = null) {
 function updateTotalsUI() {
     const foodTotal = Array.from(document.querySelectorAll('.food-pill')).reduce((s, p) => s + (parseFloat(p.dataset.extra) || 0), 0);
     const waterTotal = Array.from(document.querySelectorAll('.water-pill')).reduce((s, p) => s + (parseFloat(p.dataset.label) || 0), 0);
-    
     if (document.getElementById('food-total-today')) document.getElementById('food-total-today').textContent = foodTotal;
     if (document.getElementById('water-total-today')) document.getElementById('water-total-today').textContent = waterTotal;
 }
@@ -241,12 +269,10 @@ async function saveDiaryEntry() {
     try {
         const foodData = Array.from(document.querySelectorAll('.food-pill')).map(p => ({ name: p.dataset.label, calories: parseFloat(p.dataset.extra) || 0 }));
         const waterData = Array.from(document.querySelectorAll('.water-pill')).map(p => parseFloat(p.dataset.label));
-        
         const exerciseData = Array.from(document.querySelectorAll('.exercise-pill')).map(p => {
             const mins = parseFloat(p.dataset.extra.replace('m', '')) || 0;
             const type = p.dataset.label;
-            const burn = Math.round((MET_VALUES[type] || 3.0) * (latestWeightLbs * LBS_TO_KG) * (mins / 60));
-            return { type: type, minutes: mins, calories: burn };
+            return { type: type, minutes: mins, calories: Math.round((MET_VALUES[type] || 3.0) * (latestWeightLbs * LBS_TO_KG) * (mins / 60)) };
         });
 
         const entry = {
@@ -263,22 +289,16 @@ async function saveDiaryEntry() {
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        const weightCheck = document.getElementById('record-weight-check');
         const weightInput = document.getElementById('weight');
-        if (weightCheck?.checked && weightInput?.value) {
+        if (document.getElementById('record-weight-check')?.checked && weightInput?.value) {
             entry.weight = parseFloat(weightInput.value);
-        } else {
-            entry.weight = firebase.firestore.FieldValue.delete();
         }
 
-        if (todayDiaryDocId) {
-            await db.collection('diary').doc(todayDiaryDocId).update(entry);
-        } else {
-            const newDoc = await db.collection('diary').add(entry);
-            todayDiaryDocId = newDoc.id;
-        }
+        if (todayDiaryDocId) await db.collection('diary').doc(todayDiaryDocId).update(entry);
+        else await db.collection('diary').add(entry);
         
-        alert("Entry Saved!");
-        updateDashboardStats(); // Refresh dashboard with the new reading
+        alert("Saved!");
+        fetchUserEntryDates(); // Update calendar dots
+        updateDashboardStats();
     } catch (e) { alert("Error saving: " + e.message); }
 }
