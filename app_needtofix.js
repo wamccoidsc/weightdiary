@@ -59,7 +59,7 @@ function initializeDashboard() {
     document.getElementById('add-food-btn')?.addEventListener('click', addFood);
     document.getElementById('add-water-btn')?.addEventListener('click', addWater);
     document.getElementById('add-exercise-btn')?.addEventListener('click', addExercise);
-    document.getElementById('save-diary-btn')?.addEventListener('click', saveDiaryEntry);
+    document.getElementById('save-diary-btn')?.addEventListener('click', saveEntry);
     document.getElementById('open-settings-btn')?.addEventListener('click', () => {
         const modal = document.getElementById('settings-modal');
         if (modal) modal.style.display = 'flex';
@@ -81,6 +81,7 @@ async function loadProfile() {
         const doc = await db.collection('users').doc(currentUser.uid).get();
         if (doc.exists) {
             userProfile = doc.data();
+            // Once profile is loaded, we can calculate stats
             updateDashboardStats();
         }
     } catch (e) { console.error("Profile Load Error:", e); }
@@ -90,6 +91,12 @@ async function loadToday() {
     try {
         const today = getTodayStr();
         const snap = await db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', today).get();
+        
+        // Reset lists before populating
+        if (document.getElementById('food-list')) document.getElementById('food-list').innerHTML = '';
+        if (document.getElementById('water-list')) document.getElementById('water-list').innerHTML = '';
+        if (document.getElementById('exercise-list')) document.getElementById('exercise-list').innerHTML = '';
+
         if (!snap.empty) {
             const data = snap.docs[0].data();
             todayDiaryDocId = snap.docs[0].id;
@@ -115,7 +122,7 @@ async function loadToday() {
 function addFood() {
     const n = document.getElementById('food-input')?.value;
     const c = document.getElementById('food-calories')?.value;
-    if (n) { renderPill('food', n, c); updateTotalsUI(); document.getElementById('food-input').value = ''; }
+    if (n) { renderPill('food', n, c); updateTotalsUI(); document.getElementById('food-input').value = ''; document.getElementById('food-calories').value = ''; }
 }
 
 function addWater() {
@@ -149,28 +156,36 @@ function updateTotalsUI() {
     if (document.getElementById('water-total-today')) document.getElementById('water-total-today').textContent = waterTotal;
 }
 
-// --- DASHBOARD UPDATES (FIXED CURRENT WEIGHT LOGIC) ---
+// --- DASHBOARD UPDATES (FIXED) ---
 async function updateDashboardStats() {
     try {
         const startWeight = parseFloat(userProfile.startingWeight) || 0;
         
-        // Query absolute latest weight recorded in diary
+        // 1. Fetch the single most recent weight reading from the entire collection
+        console.log("Dashboard: Querying for absolute latest weight...");
         const weightSnap = await db.collection('diary')
             .where('userId', '==', currentUser.uid)
             .where('weight', '>', 0)
-            .orderBy('weight') 
+            .orderBy('weight') // Filtering on a range requires ordering by that field first
             .orderBy('date', 'desc')
             .limit(1).get();
 
-        let current = startWeight; // Default if no diary entries exist
+        let current = startWeight; 
         if (!weightSnap.empty) {
             current = weightSnap.docs[0].data().weight;
+            console.log("Dashboard: Latest weight found:", current);
+        } else {
+            console.log("Dashboard: No recorded weights found. Using Starting Weight.");
         }
         
-        latestWeightLbs = current; // For calorie burn calcs
+        latestWeightLbs = current; // Global variable for other calculations
 
-        const setStat = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = val; };
+        const setStat = (id, val) => { 
+            const el = document.getElementById(id);
+            if (el) el.textContent = val; 
+        };
         
+        // 2. Update Main Stats
         setStat('stat-starting-weight', startWeight.toFixed(1) + " lbs");
         setStat('stat-current-weight', current.toFixed(1) + " lbs");
         
@@ -185,7 +200,7 @@ async function updateDashboardStats() {
             document.getElementById('stat-goal-weight').textContent = (parseFloat(userProfile.goalWeight) || 0).toFixed(1) + " lbs";
         }
 
-        // Yesterday's Summary
+        // 3. Yesterday's Summary Cards
         const yesterday = getYesterdayStr();
         const ySnap = await db.collection('diary')
             .where('userId', '==', currentUser.uid)
@@ -197,22 +212,25 @@ async function updateDashboardStats() {
             setStat('stat-yesterday-water', (y.waterTotal || 0) + " oz");
             setStat('stat-yesterday-calories', y.foodCaloriesTotal || 0);
             setStat('stat-yesterday-cal-burned', y.exerciseCaloriesTotal || 0);
+            setStat('stat-yesterday-exercise', (y.exerciseMinutesTotal || 0) + " min");
         } else {
             setStat('stat-yesterday-water', "0 oz");
             setStat('stat-yesterday-calories', "0");
             setStat('stat-yesterday-cal-burned', "0");
+            setStat('stat-yesterday-exercise', "0 min");
         }
     } catch (e) { 
-        console.error("Dashboard Stats Error (Check Browser Console for Index Link):", e); 
+        console.error("Dashboard Stats Error:", e);
+        // Important: If you see "The query requires an index" in the console, click the link provided.
     }
 }
 
-async function saveDiaryEntry() {
+async function saveEntry() {
     try {
         const foodData = Array.from(document.querySelectorAll('.food-pill')).map(p => ({ name: p.dataset.label, calories: parseFloat(p.dataset.extra) || 0 }));
         const waterData = Array.from(document.querySelectorAll('.water-pill')).map(p => parseFloat(p.dataset.label));
         
-        // Calculate calories burn based on current weight
+        // Calculate calorie burn based on current weight
         const exerciseData = Array.from(document.querySelectorAll('.exercise-pill')).map(p => {
             const mins = parseFloat(p.dataset.extra.replace('m', '')) || 0;
             const type = p.dataset.label;
@@ -231,21 +249,25 @@ async function saveDiaryEntry() {
             waterTotal: waterData.reduce((s, w) => s + w, 0),
             exercises: exerciseData,
             exerciseCaloriesTotal: exerciseData.reduce((s, e) => s + e.calories, 0),
+            exerciseMinutesTotal: exerciseData.reduce((s, e) => s + e.minutes, 0),
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         const weightInput = document.getElementById('weight');
         if (document.getElementById('record-weight-check')?.checked && weightInput?.value) {
             entry.weight = parseFloat(weightInput.value);
+        } else {
+            entry.weight = firebase.firestore.FieldValue.delete();
         }
 
-        if (todayDiaryDocId) await db.collection('diary').doc(todayDiaryDocId).update(entry);
-        else {
+        if (todayDiaryDocId) {
+            await db.collection('diary').doc(todayDiaryDocId).update(entry);
+        } else {
             const newDoc = await db.collection('diary').add(entry);
             todayDiaryDocId = newDoc.id;
         }
         
-        alert("Entry Saved!");
-        updateDashboardStats();
+        alert("Daily Entry Saved!");
+        updateDashboardStats(); // Refresh dashboard with potential new weight
     } catch (e) { alert("Error saving: " + e.message); }
 }
