@@ -1,0 +1,35 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, sans-serif; background-color: #f0f2f5; color: #333; line-height: 1.5; }
+.app-container { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+.card { background: #fff; padding: 1.5rem; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 2rem; }
+.navbar { display: flex; justify-content: space-between; padding: 1rem 2rem; background: #fff; border-bottom: 1px solid #ddd; }
+.nav-btn { padding: 6px 12px; border-radius: 5px; border: 1px solid #007bff; color: #007bff; background: none; cursor: pointer; }
+
+/* Dashboard Stats */
+.dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; text-align: center; }
+.stat-label { font-size: 0.75rem; color: #777; text-transform: uppercase; display: block; }
+.stat-value { font-size: 1.25rem; font-weight: bold; color: #007bff; }
+
+/* Input Groups */
+.input-group { margin-bottom: 1.2rem; }
+.input-group label { display: block; font-weight: 600; margin-bottom: 5px; }
+.food-adder, .water-adder { display: flex; gap: 5px; }
+input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+button { cursor: pointer; }
+#save-diary-btn { width: 100%; background: #28a745; color: white; border: none; padding: 12px; border-radius: 5px; font-weight: bold; }
+
+/* Pills */
+.food-pill, .water-pill { background: #e9ecef; padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; margin: 4px; display: inline-flex; align-items: center; gap: 8px; }
+.total-line { text-align: right; font-weight: bold; font-size: 0.9rem; color: #555; }
+
+/* Calendar Dots */
+.has-entry { background: #d4edda !important; border: 1px solid #28a745 !important; font-weight: bold; }
+
+/* Modals */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: white; padding: 2rem; border-radius: 10px; width: 90%; max-width: 400px; position: relative; }
+.modal-close-btn { position: absolute; top: 10px; right: 15px; font-size: 1.5rem; cursor: pointer; }
+
+@media (min-width: 768px) {
+    .entry-cards-container { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+}
