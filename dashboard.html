@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weight Diary - Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="app-body">
+    <nav class="navbar">
+        <div class="navbar-brand">Weight Diary</div>
+        <div class="navbar-user">
+            <span id="user-email">Loading...</span>
+            <button id="open-settings-btn" class="nav-btn">My Settings</button> 
+            <button id="logout-btn" class="nav-btn">Logout</button>
+        </div>
+    </nav>
+
+    <div class="app-container">
+        <div class="dashboard-card card"> 
+            <h2>My Dashboard</h2>
+            <div class="dashboard-stats">
+                <div class="stat-item"><span class="stat-label">Starting</span><span id="stat-starting-weight" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Current</span><span id="stat-current-weight" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Goal</span><span id="stat-goal-weight" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Total Loss</span><span id="stat-total-loss" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Est. Goal Date</span><span id="stat-goal-date" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Yesterday's Water</span><span id="stat-yesterday-water" class="stat-value">--</span></div>
+                <div class="stat-item"><span class="stat-label">Yesterday's Cal</span><span id="stat-yesterday-calories" class="stat-value">--</span></div>
+            </div>
+        </div>
+
+        <div class="entry-cards-container">
+            <div class="card">
+                <h2 id="diary-title">Today's Entry</h2>
+                <p id="diary-message" class="success-message"></p>
+                <div class="input-group checkbox-group"><input type="checkbox" id="record-weight-check"><label for="record-weight-check">Record weight today</label></div>
+                <div id="weight-input-container" class="input-group" style="display: none;"><input type="number" id="weight" placeholder="Weight (lbs)"></div>
+                <div class="input-group"><label>Mood:</label><select id="mood"><option value="">-- Select --</option><option value="Happy">Happy</option><option value="Neutral">Neutral</option><option value="Stressed">Stressed</option></select></div>
+                <div class="input-group"><label>Food:</label><div class="food-adder"><input type="text" id="food-input" placeholder="Name"><input type="number" id="food-calories" placeholder="Cal"><button id="add-food-btn">+</button></div><div id="food-list" class="food-list-container"></div><div class="total-label">Total: <span id="food-total-today">0</span> cal</div></div>
+                <div class="input-group"><label>Water (oz):</label><div class="water-adder"><input type="number" id="water-input" placeholder="oz"><button id="add-water-btn">+</button></div><div id="water-list" class="water-list-container"></div><div class="total-label">Total: <span id="water-total-today">0</span> oz</div></div>
+                <div class="input-group"><label>Notes:</label><textarea id="notes" rows="3"></textarea></div>
+                <button id="save-diary-btn">Save Today's Entry</button>
+            </div>
+
+            <div class="card">
+                <h2>Past Entries</h2>
+                <button id="open-calendar-btn" class="calendar-btn">View Calendar</button>
+                <div id="past-entries-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="calendar-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close-btn">&times;</span>
+            <h3>Select Date</h3>
+            <div id="calendar-container"></div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close-btn">&times;</span>
+            <h3>Settings</h3>
+            <div class="input-group"><label>Starting Weight:</label><input type="number" id="starting-weight"></div>
+            <div class="input-group"><label>Goal Weight:</label><input type="number" id="goal-weight"></div>
+            <div class="input-group"><label>Weekly Loss Goal:</label><input type="number" id="weekly-loss-goal"></div>
+            <button id="save-settings-btn" class="modal-save-btn">Save Settings</button>
+            <p id="settings-success"></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
