@@ -17,10 +17,12 @@ const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// Global Variables
 let currentUser = null;
 let userProfile = {};
 let todayDiaryDocId = null;
 let latestWeightLbs = 0;
+let dashboardInitialized = false;
 
 const MET_VALUES = { Walking: 4.0, Running: 9.0, Elliptical: 5.0, Swimming: 6.0, Weightlifting: 4.5 };
 const LBS_TO_KG = 0.453592;
@@ -36,29 +38,32 @@ const getYesterdayStr = () => {
 auth.onAuthStateChanged(user => {
     currentUser = user;
     const path = window.location.pathname;
+    const isDashboard = path.includes("dashboard.html");
+
     if (user) {
-        if (!path.includes("dashboard.html")) window.location.href = "dashboard.html";
+        if (!isDashboard) window.location.href = "dashboard.html";
         else initializeDashboard();
     } else {
-        if (path.includes("dashboard.html")) window.location.href = "index.html";
+        if (isDashboard) window.location.href = "index.html";
     }
 });
 
 function initializeDashboard() {
-    console.log("Initializing Dashboard...");
+    if (dashboardInitialized) return;
     
-    // Set Email
     const emailEl = document.getElementById('user-email');
     if (emailEl) emailEl.textContent = currentUser.email;
 
-    // Button Listeners (Using ?. to prevent crashes if ID is missing)
+    // Listeners
     document.getElementById('logout-btn')?.addEventListener('click', () => auth.signOut());
     document.getElementById('add-food-btn')?.addEventListener('click', addFood);
     document.getElementById('add-water-btn')?.addEventListener('click', addWater);
     document.getElementById('add-exercise-btn')?.addEventListener('click', addExercise);
-    document.getElementById('add-restroom-btn')?.addEventListener('click', addRestroom);
-    document.getElementById('save-diary-btn')?.addEventListener('click', saveEntry);
-    document.getElementById('open-settings-btn')?.addEventListener('click', () => document.getElementById('settings-modal').style.display='flex');
+    document.getElementById('save-diary-btn')?.addEventListener('click', saveDiaryEntry);
+    document.getElementById('open-settings-btn')?.addEventListener('click', () => {
+        const modal = document.getElementById('settings-modal');
+        if (modal) modal.style.display = 'flex';
+    });
     
     document.getElementById('record-weight-check')?.addEventListener('change', (e) => {
         const cont = document.getElementById('weight-input-container');
@@ -67,8 +72,10 @@ function initializeDashboard() {
 
     loadProfile();
     loadToday();
+    dashboardInitialized = true;
 }
 
+// --- DATA FETCHING ---
 async function loadProfile() {
     try {
         const doc = await db.collection('users').doc(currentUser.uid).get();
@@ -82,20 +89,22 @@ async function loadProfile() {
 async function loadToday() {
     try {
         const today = getTodayStr();
-        const snap = await db.collection('diary').where('userId','==',currentUser.uid).where('date','==',today).get();
+        const snap = await db.collection('diary').where('userId', '==', currentUser.uid).where('date', '==', today).get();
         if (!snap.empty) {
             const data = snap.docs[0].data();
             todayDiaryDocId = snap.docs[0].id;
             
-            // Populate basic fields
-            if(document.getElementById('mood')) document.getElementById('mood').value = data.mood || '';
-            if(document.getElementById('notes')) document.getElementById('notes').value = data.notes || '';
-            
-            // Render existing pills
+            if (document.getElementById('mood')) document.getElementById('mood').value = data.mood || '';
+            if (document.getElementById('notes')) document.getElementById('notes').value = data.notes || '';
+            if (data.weight && document.getElementById('weight')) {
+                document.getElementById('record-weight-check').checked = true;
+                document.getElementById('weight-input-container').style.display = 'block';
+                document.getElementById('weight').value = data.weight;
+            }
+
             data.foods?.forEach(f => renderPill('food', f.name, f.calories));
             data.water?.forEach(w => renderPill('water', w));
             data.exercises?.forEach(e => renderPill('exercise', e.type, `${e.minutes}m`));
-            data.restroom?.forEach(r => renderPill('restroom', r));
             
             updateTotalsUI();
         }
@@ -104,89 +113,113 @@ async function loadToday() {
 
 // --- UI ACTIONS ---
 function addFood() {
-    const n = document.getElementById('food-input').value;
-    const c = document.getElementById('food-calories').value;
-    if(n) { renderPill('food', n, c); updateTotalsUI(); }
+    const n = document.getElementById('food-input')?.value;
+    const c = document.getElementById('food-calories')?.value;
+    if (n) { renderPill('food', n, c); updateTotalsUI(); document.getElementById('food-input').value = ''; }
 }
 
 function addWater() {
-    const w = document.getElementById('water-input').value;
-    if(w) { renderPill('water', w); updateTotalsUI(); }
+    const w = document.getElementById('water-input')?.value;
+    if (w) { renderPill('water', w); updateTotalsUI(); document.getElementById('water-input').value = ''; }
 }
 
 function addExercise() {
-    const t = document.getElementById('exercise-type').value;
-    const m = document.getElementById('exercise-minutes').value;
-    if(m) { renderPill('exercise', t, `${m}m`); updateTotalsUI(); }
-}
-
-function addRestroom() {
-    const t = document.getElementById('restroom-type').value;
-    renderPill('restroom', t);
-    updateTotalsUI();
+    const t = document.getElementById('exercise-type')?.value;
+    const m = document.getElementById('exercise-minutes')?.value;
+    if (m) { renderPill('exercise', t, `${m}m`); updateTotalsUI(); document.getElementById('exercise-minutes').value = ''; }
 }
 
 function renderPill(cat, label, extra = null) {
     const container = document.getElementById(`${cat}-list`);
-    if(!container) return;
+    if (!container) return;
     const pill = document.createElement('div');
     pill.className = `${cat}-pill`;
-    pill.dataset.val = label;
+    pill.dataset.label = label;
     pill.dataset.extra = extra;
-    pill.innerHTML = `<span>${label} ${extra ? '('+extra+')' : ''}</span> <span class="remove" style="cursor:pointer;margin-left:8px">x</span>`;
+    pill.innerHTML = `<span>${label} ${extra ? '(' + extra + ')' : ''}</span> <span class="remove" style="cursor:pointer;margin-left:8px;font-weight:bold;">x</span>`;
     pill.querySelector('.remove').onclick = () => { pill.remove(); updateTotalsUI(); };
     container.appendChild(pill);
 }
 
 function updateTotalsUI() {
-    // Restroom Logic
-    const restroomPills = document.querySelectorAll('.restroom-pill');
-    let u = 0, s = 0;
-    restroomPills.forEach(p => {
-        if(p.dataset.val === 'Urine') u++;
-        else s++;
-    });
-    if(document.getElementById('urine-count')) document.getElementById('urine-count').textContent = u;
-    if(document.getElementById('stool-count')) document.getElementById('stool-count').textContent = s;
+    const foodTotal = Array.from(document.querySelectorAll('.food-pill')).reduce((s, p) => s + (parseFloat(p.dataset.extra) || 0), 0);
+    const waterTotal = Array.from(document.querySelectorAll('.water-pill')).reduce((s, p) => s + (parseFloat(p.dataset.label) || 0), 0);
+    
+    if (document.getElementById('food-total-today')) document.getElementById('food-total-today').textContent = foodTotal;
+    if (document.getElementById('water-total-today')) document.getElementById('water-total-today').textContent = waterTotal;
 }
 
+// --- DASHBOARD UPDATES (FIXED CURRENT WEIGHT LOGIC) ---
 async function updateDashboardStats() {
     try {
-        // 1. Current Weight (Query absolute latest)
+        const startWeight = parseFloat(userProfile.startingWeight) || 0;
+        
+        // Query absolute latest weight recorded in diary
         const weightSnap = await db.collection('diary')
             .where('userId', '==', currentUser.uid)
             .where('weight', '>', 0)
-            .orderBy('weight').orderBy('date', 'desc').limit(1).get();
+            .orderBy('weight') 
+            .orderBy('date', 'desc')
+            .limit(1).get();
 
-        let current = parseFloat(userProfile.startingWeight) || 0;
-        if (!weightSnap.empty) current = weightSnap.docs[0].data().weight;
-        latestWeightLbs = current;
-
-        // 2. Update Stats UI
-        const setStat = (id, val) => { if(document.getElementById(id)) document.getElementById(id).textContent = val; };
+        let current = startWeight; // Default if no diary entries exist
+        if (!weightSnap.empty) {
+            current = weightSnap.docs[0].data().weight;
+        }
         
-        setStat('stat-starting-weight', (parseFloat(userProfile.startingWeight) || 0) + " lbs");
-        setStat('stat-current-weight', current + " lbs");
-        setStat('stat-total-loss', ((parseFloat(userProfile.startingWeight) || 0) - current).toFixed(1) + " lbs");
+        latestWeightLbs = current; // For calorie burn calcs
 
-        // 3. Yesterday's Stats
-        const ySnap = await db.collection('diary').where('userId','==',currentUser.uid).where('date','==',getYesterdayStr()).get();
-        if(!ySnap.empty) {
+        const setStat = (id, val) => { if (document.getElementById(id)) document.getElementById(id).textContent = val; };
+        
+        setStat('stat-starting-weight', startWeight.toFixed(1) + " lbs");
+        setStat('stat-current-weight', current.toFixed(1) + " lbs");
+        
+        const totalLoss = startWeight - current;
+        const totalLossEl = document.getElementById('stat-total-loss');
+        if (totalLossEl) {
+            totalLossEl.textContent = totalLoss.toFixed(1) + " lbs";
+            totalLossEl.style.color = totalLoss >= 0 ? '#28a745' : '#d93025';
+        }
+
+        if (document.getElementById('stat-goal-weight')) {
+            document.getElementById('stat-goal-weight').textContent = (parseFloat(userProfile.goalWeight) || 0).toFixed(1) + " lbs";
+        }
+
+        // Yesterday's Summary
+        const yesterday = getYesterdayStr();
+        const ySnap = await db.collection('diary')
+            .where('userId', '==', currentUser.uid)
+            .where('date', '==', yesterday)
+            .limit(1).get();
+            
+        if (!ySnap.empty) {
             const y = ySnap.docs[0].data();
             setStat('stat-yesterday-water', (y.waterTotal || 0) + " oz");
             setStat('stat-yesterday-calories', y.foodCaloriesTotal || 0);
             setStat('stat-yesterday-cal-burned', y.exerciseCaloriesTotal || 0);
-            setStat('stat-yesterday-urine', y.urineTotal || 0);
-            setStat('stat-yesterday-stool', y.stoolTotal || 0);
+        } else {
+            setStat('stat-yesterday-water', "0 oz");
+            setStat('stat-yesterday-calories', "0");
+            setStat('stat-yesterday-cal-burned', "0");
         }
-    } catch (e) { console.error("Dashboard Stat Error:", e); }
+    } catch (e) { 
+        console.error("Dashboard Stats Error (Check Browser Console for Index Link):", e); 
+    }
 }
 
-async function saveEntry() {
+async function saveDiaryEntry() {
     try {
-        const restroomData = Array.from(document.querySelectorAll('.restroom-pill')).map(p => p.dataset.val);
-        const foodData = Array.from(document.querySelectorAll('.food-pill')).map(p => ({name: p.dataset.val, calories: parseFloat(p.dataset.extra) || 0}));
+        const foodData = Array.from(document.querySelectorAll('.food-pill')).map(p => ({ name: p.dataset.label, calories: parseFloat(p.dataset.extra) || 0 }));
+        const waterData = Array.from(document.querySelectorAll('.water-pill')).map(p => parseFloat(p.dataset.label));
         
+        // Calculate calories burn based on current weight
+        const exerciseData = Array.from(document.querySelectorAll('.exercise-pill')).map(p => {
+            const mins = parseFloat(p.dataset.extra.replace('m', '')) || 0;
+            const type = p.dataset.label;
+            const burn = Math.round((MET_VALUES[type] || 3.0) * (latestWeightLbs * LBS_TO_KG) * (mins / 60));
+            return { type: type, minutes: mins, calories: burn };
+        });
+
         const entry = {
             userId: currentUser.uid,
             date: getTodayStr(),
@@ -194,16 +227,25 @@ async function saveEntry() {
             notes: document.getElementById('notes')?.value || '',
             foods: foodData,
             foodCaloriesTotal: foodData.reduce((s, f) => s + f.calories, 0),
-            restroom: restroomData,
-            urineTotal: restroomData.filter(t => t === 'Urine').length,
-            stoolTotal: restroomData.filter(t => t === 'Stool').length,
+            water: waterData,
+            waterTotal: waterData.reduce((s, w) => s + w, 0),
+            exercises: exerciseData,
+            exerciseCaloriesTotal: exerciseData.reduce((s, e) => s + e.calories, 0),
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
 
+        const weightInput = document.getElementById('weight');
+        if (document.getElementById('record-weight-check')?.checked && weightInput?.value) {
+            entry.weight = parseFloat(weightInput.value);
+        }
+
         if (todayDiaryDocId) await db.collection('diary').doc(todayDiaryDocId).update(entry);
-        else await db.collection('diary').add(entry);
+        else {
+            const newDoc = await db.collection('diary').add(entry);
+            todayDiaryDocId = newDoc.id;
+        }
         
-        alert("Saved!");
+        alert("Entry Saved!");
         updateDashboardStats();
     } catch (e) { alert("Error saving: " + e.message); }
 }
